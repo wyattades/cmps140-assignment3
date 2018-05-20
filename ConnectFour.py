@@ -92,7 +92,7 @@ class Game:
                 if update_row >= 0:
                     self.board[update_row, move] = player_num
                     self.c.itemconfig(self.gui_board[move][update_row],
-                                      fill=self.colors[self.current_turn])
+                                    fill=self.colors[self.current_turn])
                     break
         else:
             err = 'Invalid move by player {}. Column {}'.format(player_num, move)
@@ -152,6 +152,8 @@ def main(player1, player2, time):
             return RandomPlayer(num)
         elif name=='human':
             return HumanPlayer(num)
+
+    print('Starting game {} vs {} with {}s time limit'.format(player1, player2, time))
 
     Game(make_player(player1, 1), make_player(player2, 2), time)
 
