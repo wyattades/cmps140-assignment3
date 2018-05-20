@@ -1,11 +1,107 @@
 import numpy as np
+from numpy import inf
+
+class Board:
+    def __init__(self, player_number, board_matrix=None):
+        self.player = 0
+        self.opponent = 0
+        self.player_number = player_number
+        self.opponent_number = 1 if player_number == 2 else 2
+
+        if board_matrix is not None:
+            player, opponent = '', ''
+            for col in range(6, -1, -1):
+                player += '0'
+                opponent += '0'
+                for row in range(0, 6):
+                    player += '1' if board_matrix[row, col] == self.player_number else '0'
+                    opponent += '1' if board_matrix[row, col] == self.opponent_number else '0'
+            self.player = int(player, 2)
+            self.opponent = int(opponent, 2)
+
+    def valid_moves(self):
+        mask = self.player | self.opponent
+        moves = []
+        for col in range(7):
+            if (mask & (1 << (col * 7 + 1))) == 0:
+                moves.append(col)
+        return moves
+
+    def move(self, col, player_number):
+        new = Board(self.player_number)
+        mask = self.player | self.opponent
+        mask |= mask + (1 << (col * 7))
+        if player_number == self.player_number:
+            new.player = self.opponent ^ mask 
+            new.opponent = self.opponent
+        else:
+            new.player = self.player
+            new.opponent = self.player ^ mask
+        return new
+
+    def is_end(self):
+        
+        for p in [self.player, self.opponent]:
+            # Horizontal -
+            m = p & (p >> 7)
+            if m & (m >> 14):
+                return True
+            # Diagonal \
+            m = p & (p >> 6)
+            if m & (m >> 12):
+                return True
+            # Diagonal /
+            m = p & (p >> 8)
+            if m & (m >> 16):
+                return True
+            # Vertical |
+            m = p & (p >> 1)
+            if m & (m >> 2):
+                return True
+
+        return False
+
+    def evaluate(self, player_number):
+        return
+
+    def __str__(self):
+        board = np.zeros((6, 7), dtype=int)
+        mask = 1 << 49
+        for col in range(6, -1, -1):
+            mask >>= 1
+            for row in range(0, 6):
+                mask >>= 1
+                if self.player & mask != 0:
+                    board[row][col] = self.player_number
+                elif self.opponent & mask != 0:
+                    board[row][col] = self.opponent_number
+        return str(board)
+
+
+if __name__ == '__main__':
+    bm = np.array([
+        [0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0],
+        [0,0,1,0,0,0,0],
+        [2,1,2,0,0,0,0],
+        [2,1,1,0,0,0,0],
+        [2,2,2,1,1,1,0]
+    ])
+    b = Board(1, bm)
+    print(b)
+    print(b.is_end())
+    c = b.move(0, 1)
+    print(c)
+    print(c.is_end())
+    
 
 class AIPlayer:
 
-    MAX_DEPTH = 4
+    MAX_DEPTH = 5
 
     def __init__(self, player_number):
         self.player_number = player_number
+        self.opponent_number = 1 if player_number == 2 else 2
         self.type = 'ai'
         self.player_string = 'Player {}:ai'.format(player_number)
 
@@ -23,13 +119,14 @@ class AIPlayer:
     def _get_alpha_beta_extreme(self, board, depth, alpha, beta, extreme):
         score = self.evaluation_function(board)
         
-        if depth <= 0 or abs(score) == np.Infinity: return (None, score)
+        if depth <= 0 or abs(score) == inf or self._board_end(board): return (None, score)
 
         [ rows, cols ] = board.shape
         extreme_col = None
-        extreme_score = -extreme * np.Infinity
+        extreme_score = -extreme * inf
 
-        for row, col in self._valid_moves(board):
+        moves = self._valid_moves(board)
+        for row, col in moves:
 
             board[row][col] = self.player_number
             (_, next_score) = self._get_alpha_beta_extreme(board, depth - 1, alpha, beta, -extreme)
@@ -53,7 +150,6 @@ class AIPlayer:
                 #     extreme_col = col
                 #     extreme_score = alpha = next_score
                 # if alpha >= beta: break
-        
         return (extreme_col, extreme_score)
 
     def get_alpha_beta_move(self, board):
@@ -77,9 +173,46 @@ class AIPlayer:
         The 0 based index of the column that represents the next move
         """
 
-        (col, _) = self._get_alpha_beta_extreme(board, self.MAX_DEPTH, -np.Infinity, np.Infinity, 1)
-        print('')
-        return col
+        def max_value(board, alpha, beta, depth):
+            if depth >= self.MAX_DEPTH or self._board_end(board):
+                return self.evaluation_function(board)
+            v = -inf
+            for row, col in self._valid_moves(board):
+                board[row][col] = self.player_number
+                v = max(v, min_value(board, alpha, beta, depth + 1))
+                board[row][col] = 0
+                if v >= beta:
+                    return v
+                alpha = max(alpha, v)
+            return v
+
+        def min_value(board, alpha, beta, depth):
+            if depth >= self.MAX_DEPTH or self._board_end(board):
+                return self.evaluation_function(board)
+            v = inf
+            for row, col in self._valid_moves(board):
+                board[row][col] = self.opponent_number
+                v = min(v, max_value(board, alpha, beta, depth + 1))
+                board[row][col] = 0
+                if v <= alpha:
+                    return v
+                beta = min(beta, v)
+            return v
+
+        best_score = -inf
+        best_action = None
+        for row, col in self._valid_moves(board):
+            board[row][col] = self.player_number
+            v = min_value(board, best_score, inf, 0)
+            board[row][col] = 0
+            if v > best_score:
+                best_score = v
+                best_action = col
+        return best_action
+
+        # (col, _) = self._get_alpha_beta_extreme(board, self.MAX_DEPTH, -inf, inf, 1)
+        # print('')
+        # return col
 
     def _board_end(self, board):
         player_win_str = '{0}{0}{0}{0}'.format(self.player_number)
@@ -145,7 +278,7 @@ class AIPlayer:
             else: return exp_value(board, depth - 1)[1]
 
         def max_value(board, depth):
-            max_score = -np.Infinity
+            max_score = -inf
             max_col = None
 
             for row, col in self._valid_moves(board):
@@ -204,8 +337,6 @@ class AIPlayer:
             (-1, 1, range(3, cols), range(rows - 3)), # Diagonal (/) score
         ]
 
-        print(board)
-
         for delta_x, delta_y, range_x, range_y in deltas:
             for col in range_x:
                 for row in range_y:
@@ -219,22 +350,25 @@ class AIPlayer:
                             this_score += 1
                         elif val != 0:
                             other_score += 1
-                            if other_score >= 4: print(other_score)
                         x += delta_x
                         y += delta_y
+                    
                     if this_score == 4:
-                        total_score += 1
-                    #     # return 10000
-                    #     return np.Infinity
-                    if other_score == 4:
-                        print('dsfsdf')
-                        return 0
-                    #     # return 10000
-                    #     return -np.Infinity
-                    # if this_score > 0 and other_score == 0:
-                    #     total_score += this_score
-                    # if other_score > 0 and this_score == 0:
-                    #     total_score -= other_score
+                    # #     total_score += 1
+                    # #     # return 10000
+                        return inf
+                    # if other_score == 4:
+                    # #     return 1000
+                        # return -inf
+                    # total_score += this_score
+                    #     return -inf
+                    if this_score > 1 and other_score == 0:
+                        total_score += this_score * 4
+                    if other_score > 1 and this_score == 0:
+                        total_score += this_score * 8
+                    # elif other_score == 3 and this_score == 0:
+                    #     # total_score += other_score * 4 
+                    #     return -inf
 
         return total_score
 
