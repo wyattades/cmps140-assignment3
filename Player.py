@@ -3,11 +3,12 @@ from numpy import inf
 import time
 
 
+# Bitstring representation of 6x7 connect 4 game
 class Board:
 
     def __init__(self, player_number, board_matrix=None):
-        self.player = 0
-        self.opponent = 0
+        self.player = 0 # this player's pieces
+        self.opponent = 0 # opponent's pieces
         self.player_number = player_number
         self.opponent_number = 1 if player_number == 2 else 2
 
@@ -22,6 +23,7 @@ class Board:
             self.player = int(player, 2)
             self.opponent = int(opponent, 2)
 
+    # Return array of non-full columns
     def valid_moves(self):
         mask = self.player | self.opponent
         moves = []
@@ -30,6 +32,7 @@ class Board:
                 moves.append(col)
         return moves
 
+    # Return new Board with a `player_number` piece in column `col`
     def move(self, col, player_number):
         new = Board(self.player_number)
         mask = self.player | self.opponent
@@ -42,6 +45,7 @@ class Board:
             new.opponent = self.player ^ mask
         return new
 
+    # Get piece at (`row`, `col`)
     def get(self, row, col):
         select = 1 << ((col * 7) + 5 - row)
         if self.player & select != 0: return self.player_number
@@ -247,9 +251,6 @@ class AIPlayer:
                     other_score = 0
                     for _ in four:
                         val = board.get(y, x)
-                        # Check if there's a piece below this one
-                        # below = y + 1 >= self.ROWS or board.get(y + 1, x) != 0
-                        # if below:
                         if val == self.player_number: this_score += 1
                         elif val == self.opponent_number: other_score += 1
                         x += delta_x
