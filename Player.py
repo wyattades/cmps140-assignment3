@@ -23,7 +23,7 @@ class Board:
         mask = self.player | self.opponent
         moves = []
         for col in range(7):
-            if (mask & (1 << (col * 7 + 1))) == 0:
+            if (mask & (1 << ((col * 7) + 5))) == 0:
                 moves.append(col)
         return moves
 
@@ -39,9 +39,23 @@ class Board:
             new.opponent = self.player ^ mask
         return new
 
+    def get(self, row, col):
+        select = 1 << ((col * 7) + 5 - row)
+        if self.player & select != 0: return self.player_number
+        if self.opponent & select != 0: return self.opponent_number
+        return 0
+
     def is_end(self):
+
+        # Board is full
+        if (self.player | self.opponent) == 279258638311359:
+            return True
         
+        # Check 4 in a row
         for p in [self.player, self.opponent]:
+            # This strategy for checking 4 in a row is borrowed from:
+            # https://medium.com/@gillesvandewiele/creating-the-perfect-connect-four-ai-bot-c165115557b0
+            
             # Horizontal -
             m = p & (p >> 7)
             if m & (m >> 14):
@@ -66,14 +80,14 @@ class Board:
 
     def __str__(self):
         board = np.zeros((6, 7), dtype=int)
-        mask = 1 << 49
+        select = 1 << 49
         for col in range(6, -1, -1):
-            mask >>= 1
+            select >>= 1
             for row in range(0, 6):
-                mask >>= 1
-                if self.player & mask != 0:
+                select >>= 1
+                if self.player & select != 0:
                     board[row][col] = self.player_number
-                elif self.opponent & mask != 0:
+                elif self.opponent & select != 0:
                     board[row][col] = self.opponent_number
         return str(board)
 
@@ -87,12 +101,22 @@ if __name__ == '__main__':
         [2,1,1,0,0,0,0],
         [2,2,2,1,1,1,0]
     ])
+    bm2 = np.array([
+        [1,2,2,1,0,0,1],
+        [1,2,0,1,0,1,1],
+        [1,2,1,1,2,1,1],
+        [1,2,1,1,2,1,1],
+        [1,2,1,1,2,1,1],
+        [1,2,1,1,2,1,1],
+    ])
     b = Board(1, bm)
-    print(b)
-    print(b.is_end())
-    c = b.move(0, 1)
-    print(c)
-    print(c.is_end())
+    print(b.get(2, 1))
+    # print(b.player | b.opponent)
+    # print(b.is_end())
+    # print(b.valid_moves())
+    # c = b.move(0, 1)
+    # print(c)
+    # print(c.is_end())
     
 
 class AIPlayer:
