@@ -92,36 +92,34 @@ class Board:
         return str(board)
 
 
-if __name__ == '__main__':
-    bm = np.array([
-        [0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0],
-        [0,0,1,0,0,0,0],
-        [2,1,2,0,0,0,0],
-        [2,1,1,0,0,0,0],
-        [2,2,2,1,1,1,0]
-    ])
-    bm2 = np.array([
-        [1,2,2,1,0,0,1],
-        [1,2,0,1,0,1,1],
-        [1,2,1,1,2,1,1],
-        [1,2,1,1,2,1,1],
-        [1,2,1,1,2,1,1],
-        [1,2,1,1,2,1,1],
-    ])
-    b = Board(1, bm)
-    print(b.get(2, 1))
-    # print(b.player | b.opponent)
-    # print(b.is_end())
-    # print(b.valid_moves())
-    # c = b.move(0, 1)
-    # print(c)
-    # print(c.is_end())
+# if __name__ == '__main__':
+#     bm = np.array([
+#         [0,0,0,0,0,0,0],
+#         [0,0,0,0,0,0,0],
+#         [0,0,1,0,0,0,0],
+#         [2,1,2,0,0,0,0],
+#         [2,1,1,0,0,0,0],
+#         [2,2,2,1,1,1,0]
+#     ])
+#     bm2 = np.array([
+#         [1,2,2,1,0,0,1],
+#         [1,2,0,1,0,1,1],
+#         [1,2,1,1,2,1,1],
+#         [1,2,1,1,2,1,1],
+#         [1,2,1,1,2,1,1],
+#         [1,2,1,1,2,1,1],
+#     ])
+#     b = Board(1, bm)
+#     # print(b.get(2, 1))
+#     # print(b.player | b.opponent)
+#     # print(b.is_end())
+#     # print(b.valid_moves())
+#     # c = b.move(0, 1)
+#     # print(c)
+#     # print(c.is_end())
     
 
 class AIPlayer:
-
-    MAX_DEPTH = 5
 
     def __init__(self, player_number):
         self.player_number = player_number
@@ -197,42 +195,41 @@ class AIPlayer:
         The 0 based index of the column that represents the next move
         """
 
+        MAX_DEPTH = 5
+
+        # Create bitstring representation of board to improve performance
+        board = Board(self.player_number, board)
+
         def max_value(board, alpha, beta, depth):
-            if depth >= self.MAX_DEPTH or self._board_end(board):
+            if depth >= MAX_DEPTH or board.is_end():
                 return self.evaluation_function(board)
             v = -inf
-            for row, col in self._valid_moves(board):
-                board[row][col] = self.player_number
-                v = max(v, min_value(board, alpha, beta, depth + 1))
-                board[row][col] = 0
+            for col in board.valid_moves():
+                v = max(v, min_value(board.move(col, self.player_number), alpha, beta, depth + 1))
                 if v >= beta:
                     return v
                 alpha = max(alpha, v)
             return v
 
         def min_value(board, alpha, beta, depth):
-            if depth >= self.MAX_DEPTH or self._board_end(board):
+            if depth >= MAX_DEPTH or board.is_end():
                 return self.evaluation_function(board)
             v = inf
-            for row, col in self._valid_moves(board):
-                board[row][col] = self.opponent_number
-                v = min(v, max_value(board, alpha, beta, depth + 1))
-                board[row][col] = 0
+            for col in board.valid_moves():
+                v = min(v, max_value(board.move(col, self.opponent_number), alpha, beta, depth + 1))
                 if v <= alpha:
                     return v
                 beta = min(beta, v)
             return v
 
         best_score = -inf
-        best_action = None
-        for row, col in self._valid_moves(board):
-            board[row][col] = self.player_number
-            v = min_value(board, best_score, inf, 0)
-            board[row][col] = 0
+        best_col = None
+        for col in board.valid_moves():
+            v = min_value(board.move(col, self.player_number), best_score, inf, 0)
             if v > best_score:
                 best_score = v
-                best_action = col
-        return best_action
+                best_col = col
+        return best_col
 
         # (col, _) = self._get_alpha_beta_extreme(board, self.MAX_DEPTH, -inf, inf, 1)
         # print('')
@@ -293,40 +290,41 @@ class AIPlayer:
         RETURNS:
         The 0 based index of the column that represents the next move
         """
+
+        MAX_DEPTH = 4
+
         # Must generate random seed because multiprocessing always uses same seed???
         np.random.seed()
 
+        board = Board(self.player_number, board)
+
         def value(board, depth, agent):
-            if depth <= 0 or self._board_end(board): return self.evaluation_function(board)
-            if agent: return max_value(board, depth - 1)[1]
-            else: return exp_value(board, depth - 1)[1]
+            if depth >= MAX_DEPTH or board.is_end(): return self.evaluation_function(board)
+            if agent: return max_value(board, depth + 1)
+            else: return exp_value(board, depth + 1)
 
         def max_value(board, depth):
             max_score = -inf
-            max_col = None
-
-            for row, col in self._valid_moves(board):
-                board[row][col] = self.player_number
-                score = value(board, depth, False)
-                board[row][col] = 0
-
+            for col in board.valid_moves():
+                score = value(board.move(col, self.player_number), depth, False)
                 if score > max_score:
                     max_score = score
-                    max_col = col
-
-            return max_col, max_score
+            return max_score
 
         def exp_value(board, depth):
-            choices = []
+            choices = board.valid_moves()
+            col = choices[np.random.randint(len(choices))]
+            return value(board.move(col, self.opponent_number), depth, True)
 
-            for row, col in self._valid_moves(board):
-                board[row][col] = self.player_number
-                choices.append((col, value(board, depth, True)))
-                board[row][col] = 0
+        best_score = -inf
+        best_col = None
+        for col in board.valid_moves():
+            score = value(board.move(col, self.player_number), 0, False)
+            if score > best_score:
+                best_score = score
+                best_col = col
 
-            return choices[np.random.randint(len(choices))]
-
-        return max_value(board, self.MAX_DEPTH)[0]
+        return best_col
 
 
     def evaluation_function(self, board):
@@ -348,7 +346,7 @@ class AIPlayer:
         The utility value for the current board
         """
 
-        [ rows, cols ] = board.shape
+        rows, cols = 6, 7
         
         total_score = 0
         four = range(4)
@@ -369,7 +367,7 @@ class AIPlayer:
                     this_score = 0
                     other_score = 0
                     for _ in four:
-                        val = board[y][x]
+                        val = board.get(y, x)
                         if val == self.player_number:
                             this_score += 1
                         elif val != 0:
