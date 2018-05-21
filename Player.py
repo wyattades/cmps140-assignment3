@@ -46,11 +46,11 @@ class Board:
         return new
 
     # Get piece at (`row`, `col`)
-    def get(self, row, col):
-        select = 1 << ((col * 7) + 5 - row)
-        if self.player & select != 0: return self.player_number
-        if self.opponent & select != 0: return self.opponent_number
-        return 0
+    # def get(self, row, col):
+    #     select = 1 << ((col * 7) + 5 - row)
+    #     if self.player & select != 0: return self.player_number
+    #     if self.opponent & select != 0: return self.opponent_number
+    #     return 0
 
     def is_end(self):
 
@@ -112,7 +112,7 @@ class AIPlayer:
         The 0 based index of the column that represents the next move
         """
 
-        MAX_DEPTH = 6
+        MAX_DEPTH = 7
 
         # Create bitstring representation of board to improve performance
         board = Board(self.player_number, board)
@@ -144,7 +144,7 @@ class AIPlayer:
         best_score = -inf
         best_col = None
         for col in board.valid_moves():
-            v = min_value(board.move(col, self.player_number), best_score, inf, 0)
+            v = min_value(board.move(col, self.player_number), best_score, inf, 1)
             if v > best_score:
                 best_score = v
                 best_col = col
@@ -178,7 +178,7 @@ class AIPlayer:
         # Must generate random seed because multiprocessing always uses same seed???
         np.random.seed()
 
-        MAX_DEPTH = 4
+        MAX_DEPTH = 5
 
         # Create bitstring representation of board to improve performance
         board = Board(self.player_number, board)
@@ -199,7 +199,7 @@ class AIPlayer:
         best_score = -inf
         best_col = None
         for col in board.valid_moves():
-            score = value(board.move(col, self.player_number), 0, False)
+            score = value(board.move(col, self.player_number), 1, False)
             if score > best_score:
                 best_score = score
                 best_col = col
@@ -209,15 +209,23 @@ class AIPlayer:
         return best_col
 
     ROWS, COLS = 6, 7
-
-    # (delta_x, delta_y, range_x, range_y)
-    DELTAS = [
+    SEQUENCES = []
+    for delta_x, delta_y, range_x, range_y in [
         (1, 0, range(ROWS - 3), range(ROWS)), # Horizontal (-) score
         (0, 1, range(COLS), range(ROWS - 3)), # Vertical (|) score
         (1, 1, range(COLS - 3), range(ROWS - 3)), # Diagonal (\) score
         (-1, 1, range(3, COLS), range(ROWS - 3)), # Diagonal (/) score
-    ]
-
+    ]:
+        for col in range_x:
+            for row in range_y:
+                x = col
+                y = row
+                sequence = []
+                for _ in range(4):
+                    sequence.append(1 << ((x * 7) + 5 - y)) # Get a bitmask from the row and column
+                    x += delta_x
+                    y += delta_y
+                SEQUENCES.append(sequence)
 
     def evaluation_function(self, board):
         """
@@ -238,36 +246,28 @@ class AIPlayer:
         The utility value for the current board
         """
 
-        four = range(4)
         total_score = 0
 
         # Iterate over ALL possible 4-in-a-row sequences on the game-board
-        for delta_x, delta_y, range_x, range_y in self.DELTAS:
-            for col in range_x:
-                for row in range_y:
-                    x = col
-                    y = row
-                    this_score = 0
-                    other_score = 0
-                    for _ in four:
-                        val = board.get(y, x)
-                        if val == self.player_number: this_score += 1
-                        elif val == self.opponent_number: other_score += 1
-                        x += delta_x
-                        y += delta_y
+        for sequence in self.SEQUENCES:
+            this_score = 0
+            other_score = 0
+            for mask in sequence:
+                if board.player & mask != 0: this_score += 1
+                elif board.opponent & mask != 0: other_score += 1
 
-                    # Only give points for this possibility if the other player has
-                    # no pieces obstructing it
-                    if other_score == 0:
-                        # Add this player's score
-                        if this_score == 2: total_score += 1
-                        elif this_score == 3: total_score += 3
-                        elif this_score == 4: total_score += 7
-                    elif this_score == 0:
-                        # Subtract opponent's score
-                        if other_score == 2: total_score -= 1
-                        elif other_score == 3: total_score -= 3
-                        elif other_score == 4: total_score -= 7
+            # Only give points for this possibility if the other player has
+            # no pieces obstructing it
+            if other_score == 0:
+                # Add this player's score
+                if this_score == 2: total_score += 1
+                elif this_score == 3: total_score += 3
+                elif this_score == 4: total_score += 7
+            elif this_score == 0:
+                # Subtract opponent's score
+                if other_score == 2: total_score -= 1
+                elif other_score == 3: total_score -= 3
+                elif other_score == 4: total_score -= 7
 
         return total_score
 
